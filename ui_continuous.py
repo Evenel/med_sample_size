@@ -123,48 +123,15 @@ def render_clinical_inputs(group_type: str, test_type: str) -> dict:
             "precision_mode": False,
         }
     if group_type == "配对两组 (Paired)":
-        st.caption(
-            "配对设计以**配对差值**（如试验−对照）为分析单位；SD_diff 为差值的标准差。"
-            " 亦可由 SD_T、SD_C 与同一受试者两时点/两臂的**组内相关系数 ρ** 推算："
-            " SD_diff = √(SD_T² + SD_C² − 2ρ·SD_T·SD_C)。ρ 常取 0.3–0.7，默认 0.5；若不确定建议做敏感性分析。"
-        )
-        paired_sd_mode = st.radio(
-            "配对差值离散程度",
-            ["直接输入 SD_diff", "由 SD_T、SD_C、ρ 推算"],
-            horizontal=True,
-            index=0,
-        )
         sd_t = None
         sd_c = None
         rho = None
-        if paired_sd_mode == "直接输入 SD_diff":
-            sd_diff = st.number_input(
-                "配对差值标准差 SD_diff",
-                value=3.0,
-                step=0.1,
-                min_value=1e-6,
-            )
-        else:
-            c_sd1, c_sd2 = st.columns(2)
-            with c_sd1:
-                sd_t = st.number_input("试验组标准差 SD_T", value=3.0, step=0.1, min_value=1e-6)
-            with c_sd2:
-                sd_c = st.number_input("对照组标准差 SD_C", value=3.0, step=0.1, min_value=1e-6)
-            rho = st.number_input(
-                "组内相关系数 ρ",
-                value=0.5,
-                step=0.05,
-                min_value=-0.999,
-                max_value=0.999,
-                help="同一受试者上两观测（或配对两臂）的相关系数；ρ 越大则 SD_diff 越小。",
-            )
-            var_d = sd_t**2 + sd_c**2 - 2.0 * rho * sd_t * sd_c
-            if var_d <= 1e-12:
-                raise ValueError(
-                    "配对差值方差 SD_T² + SD_C² − 2ρ·SD_T·SD_C 须为正，请调整 ρ 或两组 SD。"
-                )
-            sd_diff = math.sqrt(var_d)
-            st.metric("推算得到的配对差值标准差 SD_diff", f"{sd_diff:.4f}")
+        sd_diff = st.number_input(
+            "配对差值标准差 SD_diff",
+            value=3.0,
+            step=0.1,
+            min_value=1e-6,
+        )
 
         if test_type == "精度分析":
             half_width_abs = st.number_input(
@@ -177,10 +144,6 @@ def render_clinical_inputs(group_type: str, test_type: str) -> dict:
             return {
                 "mean_diff": 0.0,
                 "sd_diff": sd_diff,
-                "sd_t": sd_t,
-                "sd_c": sd_c,
-                "rho": rho,
-                "paired_sd_mode": paired_sd_mode,
                 "margin_percent": 0.0,
                 "half_width_abs": half_width_abs,
                 "precision_mode": True,
@@ -205,10 +168,6 @@ def render_clinical_inputs(group_type: str, test_type: str) -> dict:
         return {
             "mean_diff": mean_diff,
             "sd_diff": sd_diff,
-            "sd_t": sd_t,
-            "sd_c": sd_c,
-            "rho": rho,
-            "paired_sd_mode": paired_sd_mode,
             "margin_percent": margin_percent,
             "paired_method": paired_method,
             "precision_mode": False,
@@ -277,41 +236,84 @@ def render_clinical_inputs(group_type: str, test_type: str) -> dict:
 
 def render(col_input, col_result, group_type: str, test_type: str) -> None:
     variable_type = "连续变量 (均值)"
+
+    # 自定义提交按钮颜色
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stFormSubmitButton"] button {
+            background-color: #DE9F83 !important;
+            border-color: #DE9F83 !important;
+            color: white !important;
+        }
+        div[data-testid="stFormSubmitButton"] button:hover {
+            background-color: #cb8d71 !important;
+            border-color: #cb8d71 !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # ------------------------------------------------------------------
+    # 左侧：表单（所有输入控件 + 提交按钮）
+    # ------------------------------------------------------------------
     with col_input:
-        st.markdown('<div class="section-title">临床预期</div>', unsafe_allow_html=True)
-        _c = render_clinical_inputs(group_type, test_type)
-        mean_t = _c.get("mean_t")
-        mean_c = _c.get("mean_c")
-        sd_t = _c.get("sd_t")
-        sd_c = _c.get("sd_c")
-        mean_ref = _c.get("mean_ref")
-        sd_single = _c.get("sd_single")
-        mean_diff = _c.get("mean_diff")
-        sd_diff = _c.get("sd_diff")
-        margin_percent = _c.get("margin_percent", 0.0)
-        half_width_abs = _c.get("half_width_abs")
-        precision_mode = _c.get("precision_mode", False)
-        two_arm_precision = _c.get("two_arm_precision", False)
-        paired_precision = _c.get("paired_precision", False)
-        paired_method = _c.get("paired_method", "t")
-        paired_sd_mode = _c.get("paired_sd_mode")
-        rho = _c.get("rho")
-        sd_t_paired = _c.get("sd_t")
-        sd_c_paired = _c.get("sd_c")
-        mean1 = _c.get("mean1")
-        mean2 = _c.get("mean2")
-        mean3 = _c.get("mean3")
-        sd_within = _c.get("sd_within")
-        three_arm_method = _c.get("three_arm_method")
-        control_index = _c.get("control_index", 0)
+        form_key = f"continuous_form_{group_type}_{test_type}"
+        with st.form(key=form_key):
+            st.subheader("临床预期", divider="gray")
+            _c = render_clinical_inputs(group_type, test_type)
+            mean_t = _c.get("mean_t")
+            mean_c = _c.get("mean_c")
+            sd_t = _c.get("sd_t")
+            sd_c = _c.get("sd_c")
+            mean_ref = _c.get("mean_ref")
+            sd_single = _c.get("sd_single")
+            mean_diff = _c.get("mean_diff")
+            sd_diff = _c.get("sd_diff")
+            margin_percent = _c.get("margin_percent", 0.0)
+            half_width_abs = _c.get("half_width_abs")
+            precision_mode = _c.get("precision_mode", False)
+            two_arm_precision = _c.get("two_arm_precision", False)
+            paired_precision = _c.get("paired_precision", False)
+            paired_method = _c.get("paired_method", "t")
+            mean1 = _c.get("mean1")
+            mean2 = _c.get("mean2")
+            mean3 = _c.get("mean3")
+            sd_within = _c.get("sd_within")
+            three_arm_method = _c.get("three_arm_method")
+            control_index = _c.get("control_index", 0)
 
-        stats = ui_common.render_statistics_design(variable_type, group_type, test_type)
-        alpha = stats["alpha"]
-        power_percent = stats["power_percent"]
-        dropout_percent = stats["dropout_percent"]
-        alloc_ratio_str = stats["alloc_ratio_str"]
-        alpha_side_label = stats["alpha_side_label"]
+            # 统计学设计参数
+            stats = ui_common.render_statistics_design(variable_type, group_type, test_type)
+            alpha = stats["alpha"]
+            power_percent = stats["power_percent"]
+            dropout_percent = stats["dropout_percent"]
+            alloc_ratio_str = stats["alloc_ratio_str"]
+            alpha_side_label = stats["alpha_side_label"]
 
+            # ---- 提交按钮 ----
+            st.markdown("<br>", unsafe_allow_html=True)
+            submitted = st.form_submit_button(
+                label="GO：开始计算样本量",
+                type="primary",
+                use_container_width=True,
+            )
+
+    # ------------------------------------------------------------------
+    # 右侧：按钮未点击时显示提示；点击后执行计算并输出结果
+    # ------------------------------------------------------------------
+    if not submitted:
+        with col_result:
+            st.info(
+                "👈 请在左侧填写临床预期与统计学设计参数，"
+                "然后点击 **「GO：开始计算样本量」** 按钮。"
+            )
+        return
+
+    # ------------------------------------------------------------------
+    # 计算
+    # ------------------------------------------------------------------
     alloc_ratio_val = eval(alloc_ratio_str.replace(":", "/"))
     continuous_calculator = ContinuousCalculator()
     error_message = None
@@ -426,6 +428,9 @@ def render(col_input, col_result, group_type: str, test_type: str) -> None:
     except Exception as e:
         error_message = str(e)
 
+    # ------------------------------------------------------------------
+    # 右侧：结果输出
+    # ------------------------------------------------------------------
     with col_result:
         if error_message:
             st.error(f"计算冲突: {error_message}")
@@ -439,50 +444,68 @@ def render(col_input, col_result, group_type: str, test_type: str) -> None:
             theo_total = result["total_sample_size"]
             theo_pg = int(result["n_per_group"])
             npg_drop = int(result["n_per_group_with_dropout"])
+
+            # 1. Morandi KPI 卡片（三组并列）
             st.markdown(
                 f"""
-                <div class="result-kpi-card">
-                    <div style="font-size: 16px; font-weight: 500; text-align: center; opacity: 0.95;">目标招募总样本量</div>
-                    <div style="text-align: center; margin: 30px 0;">
-                        <span style="font-size: 64px; font-weight: 700;">{total_n}</span>
-                    </div>
-                    <div class="total-box">理论所需：{theo_total} 例（三组等额，每组 {theo_pg} 例）
-                        <span style="font-weight: 400; font-size: 15px; opacity: 0.9;">(已计入 {dropout_percent}% 脱落率)</span>
-                    </div>
-                </div>
-                """,
+<div class="result-kpi-card">
+    <div style="font-size:16px;font-weight:500;text-align:center;opacity:0.95;letter-spacing:0.5px;">
+        目标招募样本量
+    </div>
+    <div class="group-split">
+        <div class="group-box">
+            <div class="group-num">{npg_drop}</div>
+            <div class="group-name">第 1 组</div>
+        </div>
+        <div class="group-box">
+            <div class="group-num">{npg_drop}</div>
+            <div class="group-name">第 2 组</div>
+        </div>
+        <div class="group-box">
+            <div class="group-num">{npg_drop}</div>
+            <div class="group-name">第 3 组</div>
+        </div>
+    </div>
+    <div class="total-box">
+        总计招募：{total_n} 例
+        （每组 {npg_drop} 例，已计入 {dropout_percent}% 脱落率）
+    </div>
+</div>
+""",
                 unsafe_allow_html=True,
             )
-            st.caption(f"计划入组：每组约 {npg_drop} 例（含脱落）。")
-            if result.get("anova_n_per_group_reference") is not None:
-                st.caption(
-                    f"参考：同参数下单因素 ANOVA 每组约 {result['anova_n_per_group_reference']} 例；"
-                    f"Kruskal-Wallis 按 ARE≈0.955 放大。"
-                )
-            if result.get("dunnett_min_pairwise_delta") is not None:
-                st.caption(
-                    f"Dunnett 保守估计所依据的两臂与对照最小绝对均值差 ≈ {result['dunnett_min_pairwise_delta']:.4f}（与 SD 同单位）。"
-                )
-            st.markdown('<div class="section-title" style="margin-top:0;">样本量计算方法</div>', unsafe_allow_html=True)
-            _meth = result.get("method", "") if isinstance(result, dict) else ""
+
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown('<div class="section-title">样本量计算方法</div>', unsafe_allow_html=True)
+
+            # 2. 极简版叙述
             ctrl_name = ["组1", "组2", "组3"][int(control_index or 0)]
-            cn_three_1 = (
-                f"本研究为三组独立样本连续变量终点**差异性**分析。假定三组预期均值分别约为 μ₁={mean1:.2f}、μ₂={mean2:.2f}、μ₃={mean3:.2f}，"
-                f"共同组内标准差 SD≈{sd_within:.2f}。"
-                f"采用{alpha_side_label}检验，显著性水平 α = {alpha}，检验效能（1−β）= {power_percent:.1f}%，三组等额分配。"
-            )
             if three_arm_method == "dunnett":
-                cn_three_1 = (
-                    f"本研究为三组连续变量终点，计划采用 **Dunnett** 型分析（**{ctrl_name}** 为对照，另两组为试验组分别与对照比较）。"
+                cn_text = (
+                    f"本研究为三组连续变量终点，计划采用 Dunnett 型分析（{ctrl_name} 为对照，另两组为试验组分别与对照比较）。"
                     f"假定三组预期均值分别约为 μ₁={mean1:.2f}、μ₂={mean2:.2f}、μ₃={mean3:.2f}，共同组内标准差 SD≈{sd_within:.2f}。"
-                    f"采用{alpha_side_label}检验，显著性水平 α = {alpha}，检验效能（1−β）= {power_percent:.1f}%，三组等额分配。"
+                    f"采用{alpha_side_label}，显著性水平 α = {alpha}，检验效能 1-β = {power_percent:.0f}%，三组等额分配。"
+                    f"在上述参数条件下，依据 {result.get('method', '')} 估算，"
+                    f"理论所需总样本量为 {theo_total} 例（每组 {theo_pg} 例）。"
+                    f"考虑约 {dropout_percent:.0f}% 脱落率，计划总入组 {total_n} 例。"
                 )
-            cn_three_2 = (
-                f"样本量采用【{_meth}】估算。"
-                f"理论所需总样本量为 {theo_total} 例（每组 {theo_pg} 例）；考虑约 {dropout_percent:.1f}% 脱落率，计划总入组 {total_n} 例。"
-            )
+            else:
+                cn_text = (
+                    f"本研究为三组独立样本连续变量终点差异性分析。"
+                    f"假定三组预期均值分别约为 μ₁={mean1:.2f}、μ₂={mean2:.2f}、μ₃={mean3:.2f}，"
+                    f"共同组内标准差 SD≈{sd_within:.2f}。"
+                    f"采用{alpha_side_label}，显著性水平 α = {alpha}，检验效能 1-β = {power_percent:.0f}%，三组等额分配。"
+                    f"在上述参数条件下，依据 {result.get('method', '')} 估算，"
+                    f"理论所需总样本量为 {theo_total} 例（每组 {theo_pg} 例）。"
+                    f"考虑约 {dropout_percent:.0f}% 脱落率，计划总入组 {total_n} 例。"
+                )
+
             st.markdown(
-                f"<div class='statement-box'><p>{cn_three_1}</p><p>{cn_three_2}</p></div>",
+                f"""
+<div class="statement-box">
+    <p>{cn_text}</p>
+</div>
+""",
                 unsafe_allow_html=True,
             )
             return
@@ -491,151 +514,135 @@ def render(col_input, col_result, group_type: str, test_type: str) -> None:
         n_treat = result.get("n_treatment_with_dropout", 0)
         n_ctrl = result.get("n_control_with_dropout", 0)
         theo_total = result["total_sample_size"]
-        theo_treat = int(result.get("n_treatment", theo_total / (1 + 1 / alloc_ratio_val)))
-        theo_ctrl = int(result.get("n_control", theo_total - theo_treat))
 
         if group_type in ("单臂设计 (Single Arm)", "配对两组 (Paired)"):
             st.markdown(
                 f"""
-                <div class="result-kpi-card">
-                    <div style="font-size: 16px; font-weight: 500; text-align: center; opacity: 0.95;">目标招募样本量</div>
-                    <div style="text-align: center; margin: 30px 0;">
-                        <span style="font-size: 64px; font-weight: 700;">{total_n}</span>
-                    </div>
-                    <div class="total-box">理论所需：{theo_total} 例 <span style="font-weight: 400; font-size: 15px; opacity: 0.9;">(已计入 {dropout_percent}% 脱落率)</span></div>
-                </div>
-                """,
+<div class="result-kpi-card">
+    <div style="font-size:16px;font-weight:500;text-align:center;opacity:0.95;letter-spacing:0.5px;">
+        目标招募样本量
+    </div>
+    <div style="text-align:center;font-size:48px;font-weight:700;margin:24px 0;">
+        {total_n} 例
+    </div>
+    <div class="total-box">
+        理论所需：{theo_total} 例（已计入 {dropout_percent}% 脱落率）
+    </div>
+</div>
+""",
                 unsafe_allow_html=True,
             )
-            st.markdown('<div class="section-title" style="margin-top:0;">样本量计算方法</div>', unsafe_allow_html=True)
-            if (
-                group_type == "配对两组 (Paired)"
-                and test_type == "精度分析"
-                and precision_mode
-                and paired_precision
-            ):
-                cn_text_p1 = (
-                    f"本研究为配对两组连续变量**精度分析**。假定配对差值标准差 SD_diff≈{sd_diff:.4f}"
-                    + (
-                        f"（由 SD_T={sd_t_paired:.2f}、SD_C={sd_c_paired:.2f}、ρ={rho:.2f} 推算）。"
-                        if paired_sd_mode == "由 SD_T、SD_C、ρ 推算"
-                        and sd_t_paired is not None
-                        and sd_c_paired is not None
-                        and rho is not None
-                        else "。"
-                    )
-                    + f" 要求 {(1 - alpha) * 100:.0f}% 置信区间下配对差值均值的半宽不超过 {half_width_abs:.4f}（与均值同单位）。"
-                )
-                _meth = result.get("method", "t 分布半宽法") if isinstance(result, dict) else "t 分布半宽法"
-                cn_text_p2 = (
-                    f"样本量采用【{_meth}】。理论最小对子数为 {theo_total}；"
-                    f"考虑约 {dropout_percent:.1f}% 脱落率，计划入组 {total_n} 例。"
+
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown('<div class="section-title">样本量计算方法</div>', unsafe_allow_html=True)
+
+            # 2. 极简版叙述
+            if group_type == "配对两组 (Paired)" and test_type == "精度分析":
+                cn_text = (
+                    f"本研究为配对两组连续变量精度分析。"
+                    f"假定配对差值标准差 SD_diff≈{sd_diff:.4f}。"
+                    f"要求 {(1 - alpha) * 100:.0f}% 置信区间下配对差值均值的半宽不超过 {half_width_abs:.4f}。"
+                    f"在上述参数条件下，依据 {result.get('method', 't 分布半宽法')} 计算，"
+                    f"理论最小对子数为 {theo_total}。"
+                    f"考虑约 {dropout_percent:.0f}% 脱落率，计划入组 {total_n} 例。"
                 )
             elif group_type == "配对两组 (Paired)":
-                margin_txt = f"，界值 Δ = {margin_percent:.2f}" if test_type != "差异性检验" else ""
-                if paired_sd_mode == "由 SD_T、SD_C、ρ 推算" and sd_t_paired is not None and rho is not None:
-                    sd_txt = (
-                        f"由 SD_T = {sd_t_paired:.2f}、SD_C = {sd_c_paired:.2f}、ρ = {rho:.2f} 推算得"
-                        f" SD_diff = {sd_diff:.4f}"
-                    )
-                else:
-                    sd_txt = f"配对差值标准差 SD_diff = {sd_diff:.4f}"
-                cn_text_p1 = (
-                    f"本研究为配对两组连续变量{test_type[:2]}设计。假定配对差值均值为 {mean_diff:.2f}，"
-                    f"{sd_txt}{margin_txt}。采用{alpha_side_label}检验，"
-                    f"显著性水平 α = {alpha}，检验效能（1−β）= {power_percent:.1f}%。"
+                margin_txt = f"、界值 Δ = {margin_percent:.2f}" if test_type != "差异性检验" else ""
+                cn_text = (
+                    f"本研究为配对两组连续变量{test_type[:2]}设计。"
+                    f"假定配对差值均值为 {mean_diff:.2f}，"
+                    f"配对差值标准差 SD_diff = {sd_diff:.4f}{margin_txt}。"
+                    f"采用{alpha_side_label}，显著性水平 α = {alpha}，检验效能 1-β = {power_percent:.0f}%。"
+                    f"在上述参数条件下，依据 {result.get('method', '配对 t 检验')} 计算，"
+                    f"理论所需对子数为 {theo_total} 例。"
+                    f"考虑约 {dropout_percent:.0f}% 脱落率，实际计划入组 {total_n} 例。"
                 )
-                _meth = (
-                    result.get("method", "配对 t 检验")
-                    if isinstance(result, dict)
-                    else "配对 t 检验"
-                )
-                cn_text_p2 = (
-                    f"样本量采用【{_meth}】。在上述参数条件下，理论所需对子数为 {theo_total} 例。"
-                    f"考虑约 {dropout_percent:.1f}% 的脱落率，为保证最终分析所需样本量，实际计划入组 {total_n} 例。"
-                )
-            elif test_type == "精度分析" and precision_mode:
-                cn_text_p1 = (
-                    f"本研究为单臂连续变量**精度分析**。假定总体标准差 SD≈{sd_single:.2f}，"
-                    f"要求 {(1 - alpha) * 100:.0f}% 置信区间下半宽不超过 {half_width_abs:.4f}（与均值同单位）。"
-                )
-                _meth = result.get("method", "t 分布半宽法") if isinstance(result, dict) else "t 分布半宽法"
-                cn_text_p2 = (
-                    f"样本量采用【{_meth}】。理论最小样本量为 {theo_total} 例；"
-                    f"考虑约 {dropout_percent:.1f}% 脱落率，计划入组 {total_n} 例。"
+            elif test_type == "精度分析":
+                cn_text = (
+                    f"本研究为单臂连续变量精度分析。"
+                    f"假定总体标准差 SD≈{sd_single:.2f}，"
+                    f"要求 {(1 - alpha) * 100:.0f}% 置信区间下半宽不超过 {half_width_abs:.4f}。"
+                    f"在上述参数条件下，依据 {result.get('method', 't 分布半宽法')} 计算，"
+                    f"理论最小样本量为 {theo_total} 例。"
+                    f"考虑约 {dropout_percent:.0f}% 脱落率，计划入组 {total_n} 例。"
                 )
             else:
-                margin_txt = f"，界值 Δ = {margin_percent:.2f}" if test_type != "差异性检验" else ""
-                cn_text_p1 = (
-                    f"本研究为单臂连续变量{test_type[:2]}设计。假定试验组均值为 {mean_t:.2f}，"
-                    f"参考均值为 {mean_ref:.2f}，标准差 SD 为 {sd_single:.2f}{margin_txt}。"
-                    f"采用{alpha_side_label}检验，显著性水平 α = {alpha}，检验效能（1−β）= {power_percent:.1f}%。"
+                margin_txt = f"、界值 Δ = {margin_percent:.2f}" if test_type != "差异性检验" else ""
+                cn_text = (
+                    f"本研究为单臂连续变量{test_type[:2]}设计。"
+                    f"假定试验组均值为 {mean_t:.2f}，参考均值为 {mean_ref:.2f}，"
+                    f"标准差 SD 为 {sd_single:.2f}{margin_txt}。"
+                    f"采用{alpha_side_label}，显著性水平 α = {alpha}，检验效能 1-β = {power_percent:.0f}%。"
+                    f"在上述参数条件下，依据 {result.get('method', '单样本 t 检验')} 计算，"
+                    f"理论所需样本量为 {theo_total} 例。"
+                    f"考虑约 {dropout_percent:.0f}% 脱落率，实际计划入组 {total_n} 例。"
                 )
-                _meth = (
-                    result.get("method", "单样本 t 检验")
-                    if isinstance(result, dict)
-                    else "单样本 t 检验"
-                )
-                cn_text_p2 = (
-                    f"样本量采用【{_meth}】。在上述参数条件下，理论所需样本量为 {theo_total} 例。"
-                    f"考虑约 {dropout_percent:.1f}% 的脱落率，为保证最终分析所需样本量，实际计划入组 {total_n} 例。"
-                )
+
             st.markdown(
-                f"<div class='statement-box'><p>{cn_text_p1}</p><p>{cn_text_p2}</p></div>",
+                f"""
+<div class="statement-box">
+    <p>{cn_text}</p>
+</div>
+""",
                 unsafe_allow_html=True,
             )
         else:
+            # 独立两组：Morandi KPI 卡片
             st.markdown(
                 f"""
-                <div class="result-kpi-card">
-                    <div style="font-size: 16px; font-weight: 500; text-align: center; opacity: 0.95; letter-spacing: 0.5px;">目标招募样本量</div>
-                    <div class="group-split">
-                        <div class="group-box">
-                            <div class="group-num">{n_treat}</div>
-                            <div class="group-name">试验组</div>
-                        </div>
-                        <div class="group-box">
-                            <div class="group-num">{n_ctrl}</div>
-                            <div class="group-name">对照组</div>
-                        </div>
-                    </div>
-                    <div class="total-box">
-                        总计招募：{total_n} 例 <span style="font-weight: 400; font-size: 15px; opacity: 0.9;">(已计入 {dropout_percent}% 脱落率)</span>
-                    </div>
-                </div>
-                """,
+<div class="result-kpi-card">
+    <div style="font-size:16px;font-weight:500;text-align:center;opacity:0.95;letter-spacing:0.5px;">
+        目标招募样本量
+    </div>
+    <div class="group-split">
+        <div class="group-box">
+            <div class="group-num">{n_treat}</div>
+            <div class="group-name">试验组</div>
+        </div>
+        <div class="group-box">
+            <div class="group-num">{n_ctrl}</div>
+            <div class="group-name">对照组</div>
+        </div>
+    </div>
+    <div class="total-box">
+        总计招募：{total_n} 例（已计入 {dropout_percent}% 脱落率，分配比 {alloc_ratio_str}）
+    </div>
+</div>
+""",
                 unsafe_allow_html=True,
             )
-            st.markdown('<div class="section-title" style="margin-top:0;">样本量计算方法</div>', unsafe_allow_html=True)
-            alloc_txt = f"即每组 {theo_treat} 例" if alloc_ratio_val == 1.0 else f"即试验组 {theo_treat} 例，对照组 {theo_ctrl} 例"
+
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown('<div class="section-title">样本量计算方法</div>', unsafe_allow_html=True)
+
+            # 2. 极简版叙述
             if test_type == "精度分析" and two_arm_precision:
-                cn_text_p1 = (
-                    f"本研究为独立两组连续变量**均值差精度分析**。假定试验组 SD≈{sd_t:.2f}、对照组 SD≈{sd_c:.2f}，"
-                    f"要求 {(1 - alpha) * 100:.0f}% 置信区间下均值差 (μT−μC) 的半宽不超过 {half_width_abs:.4f}（与均值同单位）。"
-                )
-                _meth = result.get("method", "t 分布半宽法（Welch）") if isinstance(result, dict) else "t 分布半宽法（Welch）"
-                cn_text_p2 = (
-                    f"样本量采用【{_meth}】。理论最小总样本量为 {theo_total} 例（{alloc_txt}）；"
-                    f"考虑约 {dropout_percent:.1f}% 脱落率，计划总入组 {total_n} 例。"
+                cn_text = (
+                    f"本研究为独立两组连续变量均值差精度分析。"
+                    f"假定试验组 SD≈{sd_t:.2f}、对照组 SD≈{sd_c:.2f}，"
+                    f"要求 {(1 - alpha) * 100:.0f}% 置信区间下均值差的半宽不超过 {half_width_abs:.4f}。"
+                    f"在上述参数条件下，依据 {result.get('method', 't 分布半宽法')} 计算，"
+                    f"理论最小总样本量为 {theo_total} 例。"
+                    f"考虑约 {dropout_percent:.0f}% 脱落率，计划总入组 {total_n} 例。"
                 )
             else:
-                margin_txt = f"，界值 Δ = {margin_percent:.2f}" if test_type != "差异性检验" else ""
-                cn_text_p1 = (
-                    f"本研究为连续变量终点的独立两组{test_type[:2]}设计。假定试验组均值为 {mean_t:.2f}，"
-                    f"对照组均值为 {mean_c:.2f}，试验组标准差 {sd_t:.2f}、对照组标准差 {sd_c:.2f}{margin_txt}。"
-                    f"采用{alpha_side_label}检验，显著性水平 α = {alpha}，检验效能（1−β）= {power_percent:.1f}%。"
+                margin_txt = f"、界值 Δ = {margin_percent:.2f}" if test_type != "差异性检验" else ""
+                cn_text = (
+                    f"本研究为连续变量终点的独立两组{test_type[:2]}设计。"
+                    f"假定试验组均值为 {mean_t:.2f}，对照组均值为 {mean_c:.2f}，"
+                    f"试验组标准差 {sd_t:.2f}、对照组标准差 {sd_c:.2f}{margin_txt}。"
+                    f"采用{alpha_side_label}，显著性水平 α = {alpha}，检验效能 1-β = {power_percent:.0f}%。"
+                    f"在上述参数条件下，依据 {result.get('method', '两独立样本 t')} 计算，"
+                    f"理论总样本量为 {theo_total} 例。"
+                    f"考虑约 {dropout_percent:.0f}% 脱落率，实际计划总入组 {total_n} 例"
+                    f"（试验组 {n_treat} 例，对照组 {n_ctrl} 例）。"
                 )
-                _meth = (
-                    result.get("method", "两独立样本 t（合并方差）")
-                    if isinstance(result, dict)
-                    else "两独立样本 t（合并方差）"
-                )
-                cn_text_p2 = (
-                    f"样本量采用【{_meth}】。在上述参数条件下，理论总样本量为 {theo_total} 例，"
-                    f"{alloc_txt}。考虑约 {dropout_percent:.1f}% 的脱落率，实际计划总入组 {total_n} 例，"
-                    f"其中试验组 {n_treat} 例，对照组 {n_ctrl} 例。"
-                )
+
             st.markdown(
-                f"<div class='statement-box'><p>{cn_text_p1}</p><p>{cn_text_p2}</p></div>",
+                f"""
+<div class="statement-box">
+    <p>{cn_text}</p>
+</div>
+""",
                 unsafe_allow_html=True,
             )

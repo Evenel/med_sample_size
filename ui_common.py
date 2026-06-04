@@ -97,16 +97,6 @@ def inject_morandi_ui() -> None:
     )
 
 
-def statement_box_two_paragraphs(p1: str, p2: str) -> None:
-    st.markdown(
-        f"<div class='statement-box'><p>{p1}</p><p>{p2}</p></div>",
-        unsafe_allow_html=True,
-    )
-
-
-def statement_box_one_paragraph(html_body: str) -> None:
-    st.markdown(f"<div class='statement-box'><p>{html_body}</p></div>", unsafe_allow_html=True)
-
 
 def render_statistics_design(variable_type: str, group_type: str, test_type: str) -> dict:
     """统计学设计区：α、Power、脱落率、分配、各算法下拉、检验方向。"""
@@ -122,11 +112,11 @@ def render_statistics_design(variable_type: str, group_type: str, test_type: str
     c_stat1, c_stat2 = st.columns(2)
     with c_stat1:
         if test_type == "精度分析":
-            alpha = st.selectbox("显著性水平 α（置信度 = 1−α）", [0.05, 0.025, 0.01, 0.10], index=0)
+            alpha = st.slider("显著性水平 α（置信度 = 1−α）", min_value=0.0, max_value=0.2, value=0.05, step=0.005, format="%.3f")
             power_percent = 80.0
         else:
             power_percent = st.number_input("检验效能 (Power, %)", value=80.0, step=1.0)
-            alpha = st.selectbox("显著性水平 (Alpha)", [0.05, 0.025, 0.01], index=0)
+            alpha = st.slider("显著性水平 (Alpha)", min_value=0.0, max_value=0.2, value=0.05, step=0.005, format="%.3f")
         if group_type == "独立两组 (Parallel)":
             alloc_ratio_str = st.selectbox("分配比例 (试验:对照)", ["1:1", "2:1", "3:1", "1:2"], index=0)
         else:
@@ -166,38 +156,33 @@ def render_statistics_design(variable_type: str, group_type: str, test_type: str
                 _diff_lbl = st.selectbox(
                     "计算方法（差异性）",
                     [
-                        "自动（推荐：期望频数≥5→合并方差 Z，否则→Fisher 精确）",
-                        "合并方差 Z（与 Pearson 卡方等价）",
-                        "Fisher 精确检验",
-                        "反正弦变换（极端率备选）",
+                        "合并方差正态近似（与 Pearson χ² 等价，药政常用）",
+                        "非合并方差简化公式（国内方案常用）",
+                        "Yates 连续性校正 χ²（Fleiss 公式，保守）",
+                        "Fisher 确切概率法",
                     ],
                     index=0,
-                    help="自动：按合并方差估计的样本量下，若四格最小期望频数≥5 用 Pooled Z，否则 Fisher。"
-                    " 极端率可选手动反正弦或 Fisher。",
                 )
                 _dmap = {
-                    "自动（推荐：期望频数≥5→合并方差 Z，否则→Fisher 精确）": None,
-                    "合并方差 Z（与 Pearson 卡方等价）": "pooled_z",
-                    "Fisher 精确检验": "fisher_exact",
-                    "反正弦变换（极端率备选）": "arcsine",
+                    "合并方差正态近似（与 Pearson χ² 等价，药政常用）": "pooled_z",
+                    "非合并方差简化公式（国内方案常用）": "unpooled_z",
+                    "Yates 连续性校正 χ²（Fleiss 公式，保守）": "yates_correction",
+                    "Fisher 确切概率法": "fisher_exact",
                 }
                 two_arm_diff_method = _dmap[_diff_lbl]
             else:
                 _marg_lbl = st.selectbox(
                     "计算方法（优效/非劣/等效）",
                     [
-                        "自动（FM Score）",
-                        "FM Score（Farrington–Manning，药政常用）",
-                        "Wald 非合并（大样本简化）",
-                        "Chan 无条件精确（FM 近似，需复核）",
+                        "Farrington–Manning Score（restricted MLE，金标准）",
+                        "Wald 正态近似（大样本简化）",
                     ],
                     index=0,
+                    help="FM Score 使用约束极大似然估计求 H₀ 边界方差，与 SAS/PASS/East 一致；Wald 为简化法，略保守。",
                 )
                 _mmap = {
-                    "自动（FM Score）": None,
-                    "FM Score（Farrington–Manning，药政常用）": "fm_score",
-                    "Wald 非合并（大样本简化）": "wald_unpooled",
-                    "Chan 无条件精确（FM 近似，需复核）": "unconditional_chan",
+                    "Farrington–Manning Score（restricted MLE，金标准）": "fm_score",
+                    "Wald 正态近似（大样本简化）": "wald",
                 }
                 two_arm_margin_method = _mmap[_marg_lbl]
         elif variable_type == "分类变量 (率)" and group_type == "单臂设计 (Single Arm)":
@@ -206,46 +191,40 @@ def render_statistics_design(variable_type: str, group_type: str, test_type: str
         elif variable_type == "分类变量 (率)" and group_type == "配对两组 (Paired)":
             if test_type == "差异性检验":
                 _pr_lbl = st.selectbox(
-                    "计算方法（配对率）",
+                    "计算方法（配对率差异性）",
                     [
-                        "自动（正常→McNemar，小样本/discordant 少→Exact）",
-                        "McNemar 检验（正态近似）",
+                        "McNemar 检验（Nam 正态近似）",
                         "Exact McNemar（小样本 / discordant 很少）",
                     ],
                     index=0,
                 )
                 _pr_map = {
-                    "自动（正常→McNemar，小样本/discordant 少→Exact）": None,
-                    "McNemar 检验（正态近似）": "nam_score",
+                    "McNemar 检验（Nam 正态近似）": "nam_score",
                     "Exact McNemar（小样本 / discordant 很少）": "exact_mcnemar",
                 }
             elif test_type == "等效性检验":
                 _pr_lbl = st.selectbox(
-                    "计算方法（配对率）",
+                    "计算方法（配对率等效性）",
                     [
-                        "Nam score TOST（推荐）",
-                        "paired Wald-type（快速近似，非主方法）",
+                        "Nam Score TOST（推荐）",
                     ],
                     index=0,
                 )
                 _pr_map = {
-                    "Nam score TOST（推荐）": "nam_score",
-                    "paired Wald-type（快速近似，非主方法）": "wald_blackwelder",
+                    "Nam Score TOST（推荐）": "nam_score",
                 }
             else:
                 _pr_lbl = st.selectbox(
-                    "计算方法（配对率）",
+                    "计算方法（配对率优效/非劣效）",
                     [
-                        "Nam score 方法（推荐）",
-                        "paired Wald-type（快速近似，非主方法）",
-                        "exact conditional paired（极小样本/敏感性）",
+                        "Nam Score 方法（推荐）",
+                        "Exact Conditional Paired（极小样本/敏感性）",
                     ],
                     index=0,
                 )
                 _pr_map = {
-                    "Nam score 方法（推荐）": "nam_score",
-                    "paired Wald-type（快速近似，非主方法）": "wald_blackwelder",
-                    "exact conditional paired（极小样本/敏感性）": "exact_conditional_paired",
+                    "Nam Score 方法（推荐）": "nam_score",
+                    "Exact Conditional Paired（极小样本/敏感性）": "exact_conditional_paired",
                 }
             paired_rate_method = _pr_map[_pr_lbl]
         elif (
@@ -256,17 +235,13 @@ def render_statistics_design(variable_type: str, group_type: str, test_type: str
             _ta_lbl = st.selectbox(
                 "计算方法（三组率齐性）",
                 [
-                    "自动（推荐：期望频数充分→Pearson χ²，否则→蒙特卡洛）",
-                    "Pearson χ² 齐性（非中心 χ²，常规）",
-                    "蒙特卡洛模拟（小样本/极端率/复核）",
+                    "Pearson χ² 齐性（非中心 χ² 法）",
                 ],
                 index=0,
-                help="齐性检验；等额三组。蒙特卡洛较慢但适合极小样本或方法学复核。",
+                help="三组等额分配，基于渐近 Pearson χ² 的非中心参数法。",
             )
             _ta_map = {
-                "自动（推荐：期望频数充分→Pearson χ²，否则→蒙特卡洛）": None,
-                "Pearson χ² 齐性（非中心 χ²，常规）": "pearson",
-                "蒙特卡洛模拟（小样本/极端率/复核）": "monte_carlo",
+                "Pearson χ² 齐性（非中心 χ² 法）": "pearson",
             }
             three_arm_diff_method = _ta_map[_ta_lbl]
 

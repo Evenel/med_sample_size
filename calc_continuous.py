@@ -142,7 +142,7 @@ class ContinuousCalculator:
                 se, df = _se_welch(nt, nc)
             else:
                 se, df = _se_pooled(nt, nc)
-
+       
             if test_type == "差异性检验":
                 t_a = t_dist.ppf(1 - alpha / 2, df)
             elif test_type == "等效性检验":
