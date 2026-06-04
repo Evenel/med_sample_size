@@ -112,11 +112,11 @@ def render_statistics_design(variable_type: str, group_type: str, test_type: str
     c_stat1, c_stat2 = st.columns(2)
     with c_stat1:
         if test_type == "精度分析":
-            alpha = st.slider("显著性水平 α（置信度 = 1−α）", min_value=0.0, max_value=0.2, value=0.05, step=0.005, format="%.3f")
+            alpha = st.slider("显著性水平 α（置信度 = 1−α）", min_value=0.0, max_value=0.2, value=0.05, step=0.001, format="%.3f")
             power_percent = 80.0
         else:
             power_percent = st.number_input("检验效能 (Power, %)", value=80.0, step=1.0)
-            alpha = st.slider("显著性水平 (Alpha)", min_value=0.0, max_value=0.2, value=0.05, step=0.005, format="%.3f")
+            alpha = st.slider("显著性水平 (Alpha)", min_value=0.0, max_value=0.2, value=0.05, step=0.001, format="%.3f")
         if group_type == "独立两组 (Parallel)":
             alloc_ratio_str = st.selectbox("分配比例 (试验:对照)", ["1:1", "2:1", "3:1", "1:2"], index=0)
         else:
