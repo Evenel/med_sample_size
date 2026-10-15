@@ -11,6 +11,7 @@ import math
 import streamlit as st
 
 import ui_common
+import usage_log
 from calc_proportion import ProportionCalculator, ProportionInput
 
 
@@ -418,6 +419,7 @@ def render(col_input, col_result, group_type: str, test_type: str,
 
         # ---------- Simon 二阶段 ----------
         if group_type == "Simon 二阶段" and simon_res:
+            usage_log.record_calculation(variable_type, group_type, test_type)
             _render_simon_result(simon_res, p_control_percent,
                                  p_treatment_percent, alpha,
                                  power_percent, dropout_percent)
@@ -426,6 +428,8 @@ def render(col_input, col_result, group_type: str, test_type: str,
         if not result:
             st.warning("无计算结果。")
             return
+
+        usage_log.record_calculation(variable_type, group_type, test_type)
 
         total_n = result["total_sample_size_with_dropout"]
         n_treat = result.get("n_treatment_with_dropout", 0)

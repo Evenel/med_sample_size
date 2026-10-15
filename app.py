@@ -2,6 +2,7 @@
 
 import streamlit as st
 
+import admin_usage
 import ui_common
 import ui_continuous
 import ui_proportion
@@ -49,6 +50,17 @@ def main_layout(variable_type, group_type, test_type, simon_design_type):
         ui_survival.render(col_input, col_result, group_type, test_type)
 
 
-if __name__ == "__main__":
+def calculator_page():
     v, g, t, sd = ui_common.sidebar_layout()
     main_layout(v, g, t, sd)
+
+
+# 计算器是公开页；计算记录只在 /admin，不出现在用户侧边栏里。
+_pages = st.navigation(
+    [
+        st.Page(calculator_page, title="样本量计算", default=True),
+        st.Page(admin_usage.render, title="计算记录", url_path="admin"),
+    ],
+    position="hidden",
+)
+_pages.run()

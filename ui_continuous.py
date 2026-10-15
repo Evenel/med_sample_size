@@ -5,6 +5,7 @@ import math
 import streamlit as st
 
 import ui_common
+import usage_log
 from calc_continuous import ContinuousCalculator
 
 
@@ -438,6 +439,8 @@ def render(col_input, col_result, group_type: str, test_type: str) -> None:
         if not result:
             st.warning("无计算结果。")
             return
+
+        usage_log.record_calculation(variable_type, group_type, test_type)
 
         if group_type == "三组设计 (Three Arm)":
             total_n = result["total_sample_size_with_dropout"]

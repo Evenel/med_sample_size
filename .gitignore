@@ -1,0 +1,6 @@
+__pycache__/
+*.py[cod]
+.streamlit/secrets.toml
+data/*.sqlite
+data/*.sqlite-wal
+data/*.sqlite-shm
